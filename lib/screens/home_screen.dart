@@ -59,7 +59,7 @@ class HomeScreen extends StatelessWidget {
             backgroundColor: Colors.blueGrey.shade900,
             centerTitle: true,
             title: Text(
-              isIcelandic ? 'TDK Iceland' : 'TDK Staff App',
+              'Order Food',
               style: const TextStyle(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
