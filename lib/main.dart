@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart'; // Add this
 import 'package:firebase_auth/firebase_auth.dart'; // Add this
+import 'package:shared_preferences/shared_preferences.dart'; // Add this
 import 'firebase_options.dart'; // Add this
 import 'screens/home_screen.dart';
 import 'screens/login_screen.dart'; // Add this
@@ -29,10 +30,27 @@ class _TDKFoodAppState extends State<TDKFoodApp> {
       ValueNotifier<List<String>>([]);
   bool isLoading = false;
   String? _lastUserId;
+  String closingTime = "09:30"; // Default
 
   @override
   void initState() {
     super.initState();
+    _loadLanguagePreference();
+  }
+
+  Future<void> _loadLanguagePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(() {
+        isIcelandic = prefs.getBool('isIcelandic') ?? true;
+      });
+    }
+  }
+
+  Future<void> _toggleLanguage() async {
+    setState(() => isIcelandic = !isIcelandic);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('isIcelandic', isIcelandic);
   }
 
   Future<void> _loadInitialData() async {
@@ -46,7 +64,16 @@ class _TDKFoodAppState extends State<TDKFoodApp> {
         ApiService.fetchOrderedDates(),
       ]);
 
-      menuNotifier.value = results[0] as List<Meal>;
+      final menuData = results[0] as Map<String, dynamic>;
+      menuNotifier.value = menuData['meals'] as List<Meal>;
+      
+      // Update closing time
+      if (mounted) {
+        setState(() {
+          closingTime = menuData['closingTime'] as String;
+        });
+      }
+
       orderedDatesNotifier.value = results[1] as List<String>;
     } catch (e) {
       debugPrint("Startup Error: $e");
@@ -87,12 +114,12 @@ class _TDKFoodAppState extends State<TDKFoodApp> {
 
             return HomeScreen(
               isIcelandic: isIcelandic,
-              onToggleLanguage: () =>
-                  setState(() => isIcelandic = !isIcelandic),
+              onToggleLanguage: _toggleLanguage,
               menuNotifier: menuNotifier,
               orderedDatesNotifier: orderedDatesNotifier,
               isLoading: isLoading,
               onRefresh: _loadInitialData,
+              closingTime: closingTime,
             );
           }
 

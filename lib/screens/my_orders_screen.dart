@@ -235,45 +235,70 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        // Meal Name & Status Icon
+                        // 1. Day & Date Header (Now more prominent)
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
+                            Icon(
+                              Icons.calendar_today_rounded,
+                              size: 20,
+                              color: finished
+                                  ? Colors.grey.shade400
+                                  : Colors.orange.shade800,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              "${dayTranslated.toUpperCase()}  •  $dateFormatted",
+                              style: TextStyle(
+                                color: finished
+                                    ? Colors.grey.shade400
+                                    : Colors.orange.shade800,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 14,
+                                letterSpacing: 0.8,
+                              ),
+                            ),
+                            const Spacer(),
+                            if (finished)
+                              const Icon(
+                                Icons.check_circle_rounded,
+                                color: Colors.grey,
+                                size: 24,
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        // 2. Meal Name with Icon
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.restaurant_menu_rounded,
+                              size: 24,
+                              color: finished
+                                  ? Colors.grey.shade400
+                                  : Colors.blueGrey.shade700,
+                            ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Text(
                                 order['mealName'] ?? "",
                                 style: TextStyle(
                                   fontSize: 20,
                                   fontWeight: FontWeight.bold,
+                                  height: 1.2,
                                   color: finished
                                       ? Colors.blueGrey.shade300
                                       : Colors.blueGrey.shade900,
                                 ),
                               ),
                             ),
-                            if (finished)
-                              const Icon(
-                                Icons.check_circle_rounded,
-                                color: Colors.grey,
-                                size: 20,
-                              ),
                           ],
                         ),
-                        const SizedBox(height: 6),
-                        // Day & Date Label
-                        Text(
-                          "${dayTranslated.toUpperCase()}  •  $dateFormatted",
-                          style: TextStyle(
-                            color: finished
-                                ? Colors.grey.shade400
-                                : Colors.orange.shade800,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const Divider(height: 40),
-                        // Description
+                        
+                        const Divider(height: 32),
+                        
+                        // 3. Description
                         if (description.trim().isNotEmpty) ...[
                           Text(
                             description,
@@ -287,57 +312,75 @@ class _MyOrdersScreenState extends State<MyOrdersScreen> {
                           ),
                           const SizedBox(height: 16),
                         ],
-                        // Action / Status
-                        if (finished)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade100,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.grey.shade300),
-                            ),
-                            child: Text(
-                              widget.isIcelandic ? "LOKIÐ" : "FINISHED",
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                                color: Colors.grey.shade600,
+                        
+                        // 4. Action / Status & Timestamp Row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            // Timestamp (Bottom Left)
+                            Expanded(
+                              child: Text(
+                                widget.isIcelandic
+                                    ? "Pantað: ${order['orderedAt'] ?? ""}"
+                                    : "Ordered: ${order['orderedAt'] ?? ""}",
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontStyle: FontStyle.italic,
+                                  color: Colors.grey.shade500,
+                                ),
                               ),
                             ),
-                          )
-                        else
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: TextButton.icon(
-                              onPressed: () => _handleDeleteOrder(order),
-                              style: TextButton.styleFrom(
-                                foregroundColor: Colors.redAccent,
-                                backgroundColor: Colors.redAccent.withValues(
-                                  alpha: 0.05,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                ),
+                            
+                            // Status or Cancel Button
+                            if (finished)
+                              Container(
                                 padding: const EdgeInsets.symmetric(
-                                  horizontal: 16,
-                                  vertical: 10,
+                                  horizontal: 12,
+                                  vertical: 8,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey.shade100,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: Colors.grey.shade300),
+                                ),
+                                child: Text(
+                                  widget.isIcelandic ? "LOKIÐ" : "FINISHED",
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade600,
+                                  ),
+                                ),
+                              )
+                            else
+                              TextButton.icon(
+                                onPressed: () => _handleDeleteOrder(order),
+                                style: TextButton.styleFrom(
+                                  foregroundColor: Colors.redAccent,
+                                  backgroundColor: Colors.redAccent.withValues(
+                                    alpha: 0.05,
+                                  ),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 10,
+                                  ),
+                                ),
+                                icon: const Icon(
+                                  Icons.delete_outline_rounded,
+                                  size: 18,
+                                ),
+                                label: Text(
+                                  widget.isIcelandic ? "Hætta við" : "Cancel",
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
-                              icon: const Icon(
-                                Icons.delete_outline_rounded,
-                                size: 18,
-                              ),
-                              label: Text(
-                                widget.isIcelandic ? "Hætta við" : "Cancel",
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                          ),
+                          ],
+                        ),
                       ],
                     ),
                   ),

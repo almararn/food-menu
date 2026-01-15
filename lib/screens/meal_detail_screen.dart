@@ -10,6 +10,7 @@ class MealDetailScreen extends StatefulWidget {
   final List<Meal> allMeals;
   final bool isIcelandic;
   final ValueNotifier<List<String>> orderedDatesNotifier;
+  final String closingTime;
 
   const MealDetailScreen({
     super.key,
@@ -17,6 +18,7 @@ class MealDetailScreen extends StatefulWidget {
     required this.allMeals,
     required this.isIcelandic,
     required this.orderedDatesNotifier,
+    required this.closingTime,
   });
 
   @override
@@ -63,12 +65,21 @@ class _MealDetailScreenState extends State<MealDetailScreen> {
         );
       }
 
+      // Parse Dynamic Closing Time
+      int closeHour = 9;
+      int closeMinute = 30;
+      try {
+        List<String> parts = widget.closingTime.split(':');
+        closeHour = int.parse(parts[0]);
+        closeMinute = int.parse(parts[1]);
+      } catch (_) {}
+
       DateTime deadline = DateTime(
         mealDate.year,
         mealDate.month,
         mealDate.day,
-        10,
-        0,
+        closeHour,
+        closeMinute,
       );
 
       if (mounted) {
@@ -177,8 +188,10 @@ class _MealDetailScreenState extends State<MealDetailScreen> {
               final bool isUnavailable = description.trim().isEmpty;
 
               // 3. Match logic: Should this specific card show the "Cancel" button?
+              // FIX: Check against BOTH languages because the order might have been saved in the other language.
               bool isThisOrderedMeal =
-                  (orderedMealName == mealNameOnScreen.trim());
+                  (orderedMealName == meal.mealName.trim() ||
+                  orderedMealName == meal.mealNameIs.trim());
 
               return _buildMealCard(
                 meal,
@@ -402,6 +415,15 @@ class _MealDetailScreenState extends State<MealDetailScreen> {
                 widget.orderedDatesNotifier.value = List<String>.from(
                   widget.orderedDatesNotifier.value,
                 )..add(newOrder);
+
+                _showSnackBar(
+                  widget.isIcelandic ? "Pöntun staðfest" : "Order placed",
+                  Colors.green,
+                );
+
+                // Wait 1 second before going back
+                await Future.delayed(const Duration(seconds: 2));
+                if (mounted) Navigator.pop(context);
               }
             },
             child: Text(

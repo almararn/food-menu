@@ -12,6 +12,17 @@ function onOpen() {
       .addToUi();
 }
 
+/**
+ * Automatically clears the cache when you manually edit the "Menu" sheet.
+ */
+function onEdit(e) {
+  const range = e.range;
+  const sheet = range.getSheet();
+  if (sheet.getName() === MENU_SHEET_NAME) {
+    CacheService.getScriptCache().remove("menu_json");
+  }
+}
+
 function manuallyInsertSalads() {
   const menuSheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
   const sheetData = menuSheet.getDataRange().getValues();
@@ -40,6 +51,8 @@ function manuallyInsertSalads() {
     }
   }
 
+  // Invalidate cache so users see the new salads immediately
+  CacheService.getScriptCache().remove("menu_json");
   // SpreadsheetApp.getUi().alert("Finished! Updated " + updateCount + " salad rows.");
 }
 
@@ -105,6 +118,9 @@ function updateMenu() {
       }
     }
   });
+  
+  // Invalidate cache so users see the new menu immediately
+  CacheService.getScriptCache().remove("menu_json");
  // SpreadsheetApp.getUi().alert("Menu Updated!");
 }
 
@@ -140,10 +156,26 @@ function doGet(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // --- SECTION 2: FETCH MENU (Your Existing Code) ---
+  // --- SECTION 2: FETCH MENU (With Caching) ---
   if (action === "getMenu") {
+    // Check Cache first
+    const cache = CacheService.getScriptCache();
+    const cached = cache.get("menu_json");
+    if (cached != null) {
+      return ContentService.createTextOutput(cached)
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // If not in cache, fetch from sheet
     const sheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
-    const data = sheet.getDataRange().getValues();
+    
+    // OPTIMIZATION: Only fetch columns A-F (1-6)
+    const lastRow = sheet.getLastRow();
+    if (lastRow === 0) {
+      return ContentService.createTextOutput("[]").setMimeType(ContentService.MimeType.JSON);
+    }
+    const data = sheet.getRange(1, 1, lastRow, 6).getValues();
+
     const headers = data[0];
     const rows = data.slice(1);
 
@@ -190,67 +222,99 @@ function doGet(e) {
       return obj;
     });
 
-    return ContentService.createTextOutput(JSON.stringify(jsonResponse))
+    // --- NEW: Read Closing Time from G2 ---
+    let closingTimeVal = sheet.getRange("G2").getValue();
+    let closingTimeStr = "09:30"; // Default Backup
+
+    if (closingTimeVal instanceof Date) {
+      closingTimeStr = Utilities.formatDate(closingTimeVal, Session.getScriptTimeZone(), "HH:mm");
+    } else if (typeof closingTimeVal === 'string' && closingTimeVal.includes(":")) {
+      closingTimeStr = closingTimeVal;
+    }
+
+    // Wrap the response
+    const wrapper = {
+      menu: jsonResponse,
+      closingTime: closingTimeStr
+    };
+
+    const output = JSON.stringify(wrapper);
+    
+    // Store in cache for 6 hours (21600 seconds)
+    cache.put("menu_json", output, 21600);
+
+    return ContentService.createTextOutput(output)
       .setMimeType(ContentService.MimeType.JSON);
   }
 }
 
     
    function doPost(e) {
-     const sheet = SPREADSHEET.getSheetByName("Orders");
-     const data = e.parameter;
-     const action = data.action;
-  
-     // 1. MATCHES FLUTTER: ApiService.submitOrder
-     if (action === "submitOrder") {
-       // FIX: Force the timestamp to be in Icelandic Time (Atlantic/Reykjavik)
-       const timestamp = Utilities.formatDate(new Date(), "Atlantic/Reykjavik", "dd.MM.yyyy HH:mm:ss");
-  
-       sheet.appendRow([
-         timestamp,           // Column A: Fixed Timestamp
-         "'" + data.mealDate, // Column B: Force Date as String
-         data.mealDay,        // Column C: Day
-         data.name,           // Column D: User's Name
-         data.email,          // Column E: Email
-         data.mealName,       // Column F: Meal Name
-         data.description     // Column G: Description
-       ]);
-       return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
-     }
-   
-      // 2. MATCHES FLUTTER: ApiService.cancelOrder
-      if (action === "cancelOrder") {
-        // The key from Flutter is 'userEmail', but let's check both just in case
-        const email = data.userEmail || data.email;
-        const dateToDelete = data.mealDate; // This comes in as a string, e.g., "29.01.2025"
-   
-        const rows = sheet.getDataRange().getValues();
-   
-        // Search from bottom to top
-        for (let i = rows.length - 1; i >= 1; i--) {
-          const rowEmail = rows[i][4];
-          let rowDate = rows[i][1];
-   
-          // Convert the sheet's date to a string if it's a Date object
-          if (rowDate instanceof Date) {
-            // Format it to match the incoming format "dd.MM.yyyy" or "dd/MM/yyyy"
-            // Adjust "dd.MM.yyyy" if your app sends something else.
-            // If your app sends "29/01/2025", change format string below to "dd/MM/yyyy"
-            rowDate = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), "dd.MM.yyyy");
-          }
-   
-          // Clean up both strings for comparison (trim and normalize separators)
-          const cleanRowDate = rowDate.toString().replace(/\//g, '.').trim();
-          const cleanTargetDate = dateToDelete.toString().replace(/\//g, '.').trim();
-   
-          if (rowEmail === email && cleanRowDate === cleanTargetDate) {
-            sheet.deleteRow(i + 1);
-            return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
-          }
+     const lock = LockService.getScriptLock();
+     // Wait for up to 10 seconds for other processes to finish.
+     if (lock.tryLock(10000)) {
+        try {
+           const sheet = SPREADSHEET.getSheetByName("Orders");
+           const data = e.parameter;
+           const action = data.action;
+        
+           // 1. MATCHES FLUTTER: ApiService.submitOrder
+           if (action === "submitOrder") {
+             // FIX: Force the timestamp to be in Icelandic Time (Atlantic/Reykjavik)
+             const timestamp = Utilities.formatDate(new Date(), "Atlantic/Reykjavik", "dd.MM.yyyy HH:mm:ss");
+        
+             sheet.appendRow([
+               timestamp,           // Column A: Fixed Timestamp
+               "'" + data.mealDate, // Column B: Force Date as String
+               data.mealDay,        // Column C: Day
+               data.name,           // Column D: User's Name
+               data.email,          // Column E: Email
+               data.mealName,       // Column F: Meal Name
+               data.description     // Column G: Description
+             ]);
+             return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+           }
+         
+            // 2. MATCHES FLUTTER: ApiService.cancelOrder
+            if (action === "cancelOrder") {
+              // The key from Flutter is 'userEmail', but let's check both just in case
+              const email = data.userEmail || data.email;
+              const dateToDelete = data.mealDate; // This comes in as a string, e.g., "29.01.2025"
+         
+              const rows = sheet.getDataRange().getValues();
+         
+              // Search from bottom to top
+              for (let i = rows.length - 1; i >= 1; i--) {
+                const rowEmail = rows[i][4];
+                let rowDate = rows[i][1];
+         
+                // Convert the sheet's date to a string if it's a Date object
+                if (rowDate instanceof Date) {
+                  // Format it to match the incoming format "dd.MM.yyyy" or "dd/MM/yyyy"
+                  // Adjust "dd.MM.yyyy" if your app sends something else.
+                  // If your app sends "29/01/2025", change format string below to "dd/MM/yyyy"
+                  rowDate = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), "dd.MM.yyyy");
+                }
+         
+                // Clean up both strings for comparison (trim and normalize separators)
+                const cleanRowDate = rowDate.toString().replace(/\//g, '.').trim();
+                const cleanTargetDate = dateToDelete.toString().replace(/\//g, '.').trim();
+         
+                if (rowEmail === email && cleanRowDate === cleanTargetDate) {
+                  sheet.deleteRow(i + 1);
+                  return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+                }
+              }
+              return ContentService.createTextOutput("Not Found").setMimeType(ContentService.MimeType.TEXT);
+            }
+        } finally {
+           lock.releaseLock();
         }
-        return ContentService.createTextOutput("Not Found").setMimeType(ContentService.MimeType.TEXT);
-      }
-    }
+     } else {
+       return ContentService.createTextOutput("Error: Server busy, please try again.")
+         .setMimeType(ContentService.MimeType.TEXT);
+     }
+   }
 
 function clearAllOrders() {
   const ui = SpreadsheetApp.getUi();

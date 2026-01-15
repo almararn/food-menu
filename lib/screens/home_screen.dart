@@ -13,6 +13,7 @@ class HomeScreen extends StatelessWidget {
   final ValueNotifier<List<String>> orderedDatesNotifier;
   final bool isLoading;
   final Future<void> Function() onRefresh;
+  final String closingTime;
 
   const HomeScreen({
     super.key,
@@ -22,6 +23,7 @@ class HomeScreen extends StatelessWidget {
     required this.orderedDatesNotifier,
     required this.isLoading,
     required this.onRefresh,
+    required this.closingTime,
   });
 
   String _getWeekRange() {
@@ -130,6 +132,24 @@ class HomeScreen extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        // Icon or Logo
+                        const Icon(
+                          Icons.restaurant_menu_rounded,
+                          size: 80,
+                          color: Colors.blueGrey,
+                        ),
+                        const SizedBox(height: 24),
+                        const Text(
+                          "TDK Food Portal",
+                          style: TextStyle(
+                            fontSize: 28,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                        const SizedBox(
+                          height: 56,
+                        ), // Space instead of the removed text
                         _buildBigButton(
                           context,
                           title: isIcelandic ? "Panta Mat" : "Order Food",
@@ -138,7 +158,7 @@ class HomeScreen extends StatelessWidget {
                               : (isIcelandic
                                     ? "Matseðill ekki klár"
                                     : "Menu not ready"),
-                          icon: Icons.restaurant_menu_rounded,
+                          icon: Icons.fastfood,
                           color: isMenuReady
                               ? Colors.orange
                               : Colors.grey.shade400,
@@ -258,6 +278,7 @@ class HomeScreen extends StatelessWidget {
           menuNotifier: menuNotifier,
           orderedDatesNotifier: orderedDatesNotifier,
           onRefresh: onRefresh,
+          closingTime: closingTime,
         ),
       ),
     );

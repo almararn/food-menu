@@ -8,18 +8,33 @@ class ApiService {
   static const String _url =
       'https://script.google.com/macros/s/AKfycbx7qzp03MJsYfl995qcV-W3sq4yrHpcXQxT_4Wdno1DA4-X3InVF1fq-aTxtEgl6GmD/exec';
 
-  // 1. Fetch Menu
-  static Future<List<Meal>> fetchMenu() async {
+  // 1. Fetch Menu - Updated to return Map with meals and closingTime
+  static Future<Map<String, dynamic>> fetchMenu() async {
     try {
       final response = await http.get(Uri.parse('$_url?action=getMenu'));
 
       if (response.statusCode == 200) {
-        List<dynamic> data = json.decode(response.body);
-        return data.map((json) => Meal.fromJson(json)).toList();
+        final decoded = json.decode(response.body);
+
+        if (decoded is List) {
+          // Fallback for old API structure
+          return {
+            'meals': decoded.map((json) => Meal.fromJson(json)).toList(),
+            'closingTime': '09:30' // Default fallback
+          };
+        } else {
+          // New Structure
+          List<dynamic> menuList = decoded['menu'] ?? [];
+          String time = decoded['closingTime']?.toString() ?? "09:30";
+          return {
+            'meals': menuList.map((json) => Meal.fromJson(json)).toList(),
+            'closingTime': time
+          };
+        }
       }
-      return [];
+      return {'meals': <Meal>[], 'closingTime': '09:30'};
     } catch (e) {
-      return [];
+      return {'meals': <Meal>[], 'closingTime': '09:30'};
     }
   }
 

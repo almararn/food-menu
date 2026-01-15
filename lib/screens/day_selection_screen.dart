@@ -7,6 +7,7 @@ class DaySelectionScreen extends StatefulWidget {
   final ValueNotifier<List<Meal>> menuNotifier;
   final ValueNotifier<List<String>> orderedDatesNotifier;
   final Future<void> Function() onRefresh;
+  final String closingTime;
 
   const DaySelectionScreen({
     super.key,
@@ -14,6 +15,7 @@ class DaySelectionScreen extends StatefulWidget {
     required this.menuNotifier,
     required this.orderedDatesNotifier,
     required this.onRefresh,
+    required this.closingTime,
   });
 
   @override
@@ -48,8 +50,20 @@ class _DaySelectionScreenState extends State<DaySelectionScreen> {
     );
 
     if (mealMidnight.isBefore(todayMidnight)) return false;
-    if (mealMidnight.isAtSameMomentAs(todayMidnight) && now.hour >= 10) {
-      return false;
+    
+    // Dynamic Closing Time Logic
+    if (mealMidnight.isAtSameMomentAs(todayMidnight)) {
+      try {
+        List<String> parts = widget.closingTime.split(':');
+        int closeHour = int.parse(parts[0]);
+        int closeMinute = int.parse(parts[1]);
+        
+        DateTime closing = DateTime(now.year, now.month, now.day, closeHour, closeMinute);
+        if (now.isAfter(closing)) return false;
+      } catch (e) {
+        // Fallback to 09:30 if parsing fails
+        if (now.hour > 9 || (now.hour == 9 && now.minute >= 30)) return false;
+      }
     }
 
     return true;
@@ -193,6 +207,7 @@ class _DaySelectionScreenState extends State<DaySelectionScreen> {
                         allMeals: mealsForList,
                         isIcelandic: widget.isIcelandic,
                         orderedDatesNotifier: widget.orderedDatesNotifier,
+                        closingTime: widget.closingTime,
                       ),
                     ),
                   )
@@ -217,7 +232,7 @@ class _DaySelectionScreenState extends State<DaySelectionScreen> {
           ),
         ),
         Text(
-          "Kl. 10:00",
+          "Kl. ${widget.closingTime}",
           style: TextStyle(fontSize: 10, color: Colors.grey[600]),
         ),
       ],
