@@ -1,0 +1,5 @@
+feat: Update home screen app bar text to 'Order Food'
+
+Changed the hardcoded app bar title on the home screen from
+'TDK Iceland' / 'TDK Staff App' to 'Order Food' for the English version.
+This improves clarity and aligns with the app's core functionality.

@@ -1,0 +1,375 @@
+const SPREADSHEET = SpreadsheetApp.getActiveSpreadsheet();
+const MENU_SHEET_NAME = "Menu";
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('🍱 Food App Tools')
+      .addItem('1. Set Up Spreadsheet', 'buildMySpreadsheet')
+      .addItem('2. Fetch Menu Now', 'updateMenu')
+      .addItem('3. Sync Salads Only', 'manuallyInsertSalads')
+      .addSeparator()
+      .addItem('🖨️ Generate Print List', 'generatePrintableOrders')
+      .addItem('🗑️ Clear All Orders', 'clearAllOrders')
+      .addToUi();
+}
+
+function manuallyInsertSalads() {
+  const menuSheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
+  const sheetData = menuSheet.getDataRange().getValues();
+
+  // Get the values you typed into the Salad Master Setup
+  const salad1_IS = menuSheet.getRange("H2").getValue();
+  const salad1_EN = menuSheet.getRange("I2").getValue();
+  const salad2_IS = menuSheet.getRange("H3").getValue();
+  const salad2_EN = menuSheet.getRange("I3").getValue();
+
+  let updateCount = 0;
+
+  // Loop through the sheet to find S1 and S2 rows
+  for (let i = 1; i < sheetData.length; i++) {
+    let rowNum = i + 1;
+    let itemID = sheetData[i][2]; // Column C (Item_ID)
+
+    if (itemID.endsWith("S1")) {
+      menuSheet.getRange(rowNum, 5).setValue(salad1_IS); // Column E
+      menuSheet.getRange(rowNum, 6).setValue(salad1_EN); // Column F
+      updateCount++;
+    } else if (itemID.endsWith("S2")) {
+      menuSheet.getRange(rowNum, 5).setValue(salad2_IS); // Column E
+      menuSheet.getRange(rowNum, 6).setValue(salad2_EN); // Column F
+      updateCount++;
+    }
+  }
+
+  // SpreadsheetApp.getUi().alert("Finished! Updated " + updateCount + " salad rows.");
+}
+
+function updateMenu() {
+  const url = 'https://www.vitinnmathus.is/is/matsedill-vitinn';
+  const menuSheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
+  const response = UrlFetchApp.fetch(url);
+  const html = response.getContentText();
+  const sheetData = menuSheet.getDataRange().getValues();
+
+  const salad1_IS = menuSheet.getRange("H2").getValue();
+  const salad1_EN = menuSheet.getRange("I2").getValue();
+  const salad2_IS = menuSheet.getRange("H3").getValue();
+  const salad2_EN = menuSheet.getRange("I3").getValue();
+
+  const daysMap = [
+    { en: "Monday", is: "Mánudagur" },
+    { en: "Tuesday", is: "Þriðjudagur" },
+    { en: "Wednesday", is: "Miðvikudagur" },
+    { en: "Thursday", is: "Fimmtudagur" },
+    { en: "Friday", is: "Föstudagur" }
+  ];
+
+  daysMap.forEach((dayObj, index) => {
+    const nextDayIS = (daysMap[index + 1]) ? daysMap[index + 1].is : "Strandgata 53";
+    const regex = new RegExp(dayObj.is + "(.*?)(?=" + nextDayIS + ")", "gs");
+    const match = regex.exec(html);
+    
+    let scrapedMeals = [];
+    let isClosed = false;
+
+    if (match) {
+      let dayRawText = match[1].replace(/<[^>]*>/g, "\n");
+      if (dayRawText.toUpperCase().includes("LOKAÐ")) {
+        isClosed = true;
+      } else {
+        scrapedMeals = dayRawText.split("\n")
+                                 .map(s => s.trim())
+                                 .filter(s => s.length > 15 && !s.includes("&nbsp;"))
+                                 .filter(text => !/\d+\.\w+/.test(text));
+      }
+    }
+
+    for (let i = 1; i < sheetData.length; i++) {
+      if (sheetData[i][0] === dayObj.en) {
+        let rowNum = i + 1;
+        let itemID = sheetData[i][2]; // Now in Column C
+
+        if (/^[A-Z][a-z]{2}[1-3]$/.test(itemID)) { // Options A, B, C
+          if (isClosed) {
+            menuSheet.getRange(rowNum, 5).setValue(itemID.endsWith("1") ? "LOKAÐ: Eldhúsið er lokað." : "");
+            menuSheet.getRange(rowNum, 6).setValue(itemID.endsWith("1") ? "CLOSED: The kitchen is closed." : "");
+          } else {
+            let mealIndex = parseInt(itemID.slice(-1)) - 1;
+            menuSheet.getRange(rowNum, 5).setValue(scrapedMeals[mealIndex] || "");
+          }
+        }
+
+        if (itemID.endsWith("S1") || itemID.endsWith("S2")) { // Salads
+          menuSheet.getRange(rowNum, 5).setValue(!isClosed ? (itemID.endsWith("S1") ? salad1_IS : salad2_IS) : "");
+          menuSheet.getRange(rowNum, 6).setValue(!isClosed ? (itemID.endsWith("S1") ? salad1_EN : salad2_EN) : "");
+        }
+      }
+    }
+  });
+ // SpreadsheetApp.getUi().alert("Menu Updated!");
+}
+
+function doGet(e) {
+  // 1. Get the action from the request (defaults to 'getMenu' if empty)
+  const action = e.parameter.action || "getMenu";
+
+  // --- SECTION 1: FETCH USER ORDERS ---
+  if (action === "getUserOrders") {
+    const userEmail = e.parameter.email;
+    const orderSheet = SPREADSHEET.getSheetByName("Orders"); // Make sure this matches your tab name
+    
+    if (!orderSheet) {
+      return ContentService.createTextOutput(JSON.stringify([])).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    const orderData = orderSheet.getDataRange().getValues();
+    const ordersHeaders = orderData[0];
+    const orderRows = orderData.slice(1);
+
+    // Filter rows where the Email (Column E / index 4) matches the user
+    const filteredOrders = orderRows
+      .filter(row => row[4] === userEmail)
+      .map(row => ({
+        "orderedAt": row[0],
+        "mealDate": row[1],
+        "mealDay": row[2],
+        "mealName": row[5],
+        "description": row[6]
+      }));
+
+    return ContentService.createTextOutput(JSON.stringify(filteredOrders))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // --- SECTION 2: FETCH MENU (Your Existing Code) ---
+  if (action === "getMenu") {
+    const sheet = SPREADSHEET.getSheetByName(MENU_SHEET_NAME);
+    const data = sheet.getDataRange().getValues();
+    const headers = data[0];
+    const rows = data.slice(1);
+
+    const dayTranslations = {
+      "Monday": "Mánudagur", "Tuesday": "Þriðjudagur", "Wednesday": "Miðvikudagur",
+      "Thursday": "Fimmtudagur", "Friday": "Föstudagur"
+    };
+    
+    const optionTranslations = {
+      "Option A": "Valmöguleiki A", "Option B": "Valmöguleiki B", "Option C": "Valmöguleiki C",
+      "Option D": "Valmöguleiki D", "Option E": "Valmöguleiki E"
+    };
+
+    const jsonResponse = rows.map(row => {
+      let obj = {};
+      headers.forEach((header, i) => { 
+        obj[header.toLowerCase().replace(/ /g, "_")] = row[i]; 
+      });
+
+      if (obj.date) {
+        try {
+          let dateVal = obj.date;
+          if (dateVal instanceof Date) {
+            obj["date"] = Utilities.formatDate(dateVal, Session.getScriptTimeZone(), "dd/MM/yyyy");
+            obj["full_date"] = Utilities.formatDate(dateVal, Session.getScriptTimeZone(), "yyyy-MM-dd");
+          } else {
+            let dateStr = dateVal.toString();
+            obj["date"] = dateStr; 
+            if (dateStr.includes("/")) {
+              let parts = dateStr.split("/");
+              obj["full_date"] = parts[2] + "-" + parts[1] + "-" + parts[0];
+            } else {
+              obj["full_date"] = dateStr;
+            }
+          }
+        } catch (e) {
+          obj["full_date"] = "";
+          obj["date"] = "Check Sheet";
+        }
+      }
+
+      obj["day_is"] = dayTranslations[obj["day"]] || obj["day"];
+      obj["meal_name_is"] = optionTranslations[obj["meal_name"]] || obj["meal_name"];
+      return obj;
+    });
+
+    return ContentService.createTextOutput(JSON.stringify(jsonResponse))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
+    
+   function doPost(e) {
+     const sheet = SPREADSHEET.getSheetByName("Orders");
+     const data = e.parameter;
+     const action = data.action;
+  
+     // 1. MATCHES FLUTTER: ApiService.submitOrder
+     if (action === "submitOrder") {
+       // FIX: Force the timestamp to be in Icelandic Time (Atlantic/Reykjavik)
+       const timestamp = Utilities.formatDate(new Date(), "Atlantic/Reykjavik", "dd.MM.yyyy HH:mm:ss");
+  
+       sheet.appendRow([
+         timestamp,           // Column A: Fixed Timestamp
+         "'" + data.mealDate, // Column B: Force Date as String
+         data.mealDay,        // Column C: Day
+         data.name,           // Column D: User's Name
+         data.email,          // Column E: Email
+         data.mealName,       // Column F: Meal Name
+         data.description     // Column G: Description
+       ]);
+       return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+     }
+   
+      // 2. MATCHES FLUTTER: ApiService.cancelOrder
+      if (action === "cancelOrder") {
+        // The key from Flutter is 'userEmail', but let's check both just in case
+        const email = data.userEmail || data.email;
+        const dateToDelete = data.mealDate; // This comes in as a string, e.g., "29.01.2025"
+   
+        const rows = sheet.getDataRange().getValues();
+   
+        // Search from bottom to top
+        for (let i = rows.length - 1; i >= 1; i--) {
+          const rowEmail = rows[i][4];
+          let rowDate = rows[i][1];
+   
+          // Convert the sheet's date to a string if it's a Date object
+          if (rowDate instanceof Date) {
+            // Format it to match the incoming format "dd.MM.yyyy" or "dd/MM/yyyy"
+            // Adjust "dd.MM.yyyy" if your app sends something else.
+            // If your app sends "29/01/2025", change format string below to "dd/MM/yyyy"
+            rowDate = Utilities.formatDate(rowDate, Session.getScriptTimeZone(), "dd.MM.yyyy");
+          }
+   
+          // Clean up both strings for comparison (trim and normalize separators)
+          const cleanRowDate = rowDate.toString().replace(/\//g, '.').trim();
+          const cleanTargetDate = dateToDelete.toString().replace(/\//g, '.').trim();
+   
+          if (rowEmail === email && cleanRowDate === cleanTargetDate) {
+            sheet.deleteRow(i + 1);
+            return ContentService.createTextOutput("Success").setMimeType(ContentService.MimeType.TEXT);
+          }
+        }
+        return ContentService.createTextOutput("Not Found").setMimeType(ContentService.MimeType.TEXT);
+      }
+    }
+
+function clearAllOrders() {
+  const ui = SpreadsheetApp.getUi();
+  
+  // 1. Show the confirmation modal (Title, Prompt, Buttons)
+  const response = ui.alert(
+    '⚠️ Confirm Deletion',
+    'Are you sure you want to delete ALL orders? This cannot be undone.',
+    ui.ButtonSet.YES_NO
+  );
+
+  // 2. Check the user's response
+  if (response == ui.Button.YES) {
+    const orderSheet = SPREADSHEET.getSheetByName("Orders");
+    
+    if (orderSheet) {
+      const lastRow = orderSheet.getLastRow();
+      
+      if (lastRow > 1) {
+        // Clear from row 2 down to the last row, columns A-G
+        orderSheet.getRange(2, 1, lastRow - 1, 7).clearContent();
+        
+        // FIXED: Only passing the message string here
+       // ui.alert('All orders have been cleared successfully.');
+      } else {
+        ui.alert('The sheet is already empty.');
+      }
+    } else {
+      ui.alert('Error: Could not find a sheet named "Orders".');
+    }
+  } else {
+    // Quietly cancel
+    SpreadsheetApp.getActiveSpreadsheet().toast("Deletion cancelled.", "Admin");
+  }
+}
+
+function generatePrintableOrders() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const orderSheet = ss.getSheetByName("Orders");
+  
+  if (!orderSheet) {
+    SpreadsheetApp.getUi().alert("Could not find 'Orders' sheet.");
+    return;
+  }
+
+  const data = orderSheet.getDataRange().getValues();
+  if (data.length < 2) {
+    SpreadsheetApp.getUi().alert("No orders found to print.");
+    return;
+  }
+
+  const todayStr = Utilities.formatDate(new Date(), "Atlantic/Reykjavik", "dd.MM.yyyy");
+
+  // 1. Prepare/Clear the Print Sheet
+  let printSheet = ss.getSheetByName("Print_Orders") || ss.insertSheet("Print_Orders");
+  printSheet.clear();
+
+  // 2. Filter for Today & Track Counts
+  let mealCounts = {}; 
+  
+  let printRows = data.slice(1).filter(row => {
+    let rowDate = row[1];
+    if (rowDate instanceof Date) {
+      rowDate = Utilities.formatDate(rowDate, "Atlantic/Reykjavik", "dd.MM.yyyy");
+    }
+    const cleanRowDate = String(rowDate).replace(/\//g, '.').trim();
+    const cleanTodayDate = todayStr.replace(/\//g, '.').trim();
+
+    return cleanRowDate === cleanTodayDate;
+  }).map(row => {
+    let mealName = row[5];
+    let rawDesc = String(row[6] || "");
+    let shortDesc = rawDesc.length > 20 ? rawDesc.substring(0, 20) + "..." : rawDesc;
+    
+    // Count the meals for the summary
+    mealCounts[mealName] = (mealCounts[mealName] || 0) + 1;
+
+    return [
+      row[3],     // Name
+      row[2],     // Day
+      mealName,   // Meal Name
+      shortDesc   // Shortened Description
+    ];
+  });
+
+  if (printRows.length === 0) {
+    SpreadsheetApp.getUi().alert("No orders found for today: " + todayStr);
+    return;
+  }
+
+  // 3. Alphabetical Sort by Name (Index 0)
+  printRows.sort((a, b) => a[0].localeCompare(b[0]));
+
+  // 4. Write Main List
+  const printHeader = [["Name", "Day", "Meal Name", "Description (Short)"]];
+  printSheet.getRange(1, 1, 1, 4).setValues(printHeader).setFontWeight("bold").setBackground("#eeeeee");
+  printSheet.getRange(2, 1, printRows.length, 4).setValues(printRows);
+
+  // 5. Create Summary Table (3 rows below the list)
+  let summaryStartRow = printRows.length + 4;
+  let summaryData = [["MEAL TOTALS", "COUNT"]];
+  for (let meal in mealCounts) {
+    summaryData.push([meal, mealCounts[meal]]);
+  }
+
+  const summaryRange = printSheet.getRange(summaryStartRow, 1, summaryData.length, 2);
+  summaryRange.setValues(summaryData);
+  
+  // Format Summary Table
+  printSheet.getRange(summaryStartRow, 1, 1, 2).setFontWeight("bold").setBackground("#d9ead3");
+  summaryRange.setBorder(true, true, true, true, true, true);
+
+  // 6. Final Formatting
+  printSheet.setColumnWidth(1, 180); 
+  printSheet.setColumnWidth(2, 80); 
+  printSheet.setColumnWidth(3, 150); 
+  printSheet.setColumnWidth(4, 200); 
+  printSheet.getRange(1, 1, printRows.length + 1, 4).setBorder(true, true, true, true, true, true);
+
+  ss.setActiveSheet(printSheet);
+  ss.toast("List ready for " + todayStr, "🍱 Vitinn Tools");
+}

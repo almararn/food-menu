@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
+import '../services/auth_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'day_selection_screen.dart';
+import 'my_orders_screen.dart';
 import '../models/meal.dart';
-import 'package:intl/intl.dart'; // Add this for date formatting
+import 'package:intl/intl.dart';
 
 class HomeScreen extends StatelessWidget {
   final bool isIcelandic;
   final VoidCallback onToggleLanguage;
   final ValueNotifier<List<Meal>> menuNotifier;
+  final ValueNotifier<List<String>> orderedDatesNotifier;
   final bool isLoading;
   final Future<void> Function() onRefresh;
 
@@ -15,16 +19,15 @@ class HomeScreen extends StatelessWidget {
     required this.isIcelandic,
     required this.onToggleLanguage,
     required this.menuNotifier,
+    required this.orderedDatesNotifier,
     required this.isLoading,
     required this.onRefresh,
   });
 
-  // Helper function to calculate the date range string
   String _getWeekRange() {
     final meals = menuNotifier.value;
     if (meals.isEmpty) return "";
 
-    // 1. Extract all fullDate strings and parse them to DateTime objects
     List<DateTime> dates = meals
         .map((m) => DateTime.tryParse(m.fullDate))
         .whereType<DateTime>()
@@ -32,104 +35,231 @@ class HomeScreen extends StatelessWidget {
 
     if (dates.isEmpty) return "";
 
-    // 2. Find the earliest and latest dates
     dates.sort();
     DateTime first = dates.first;
     DateTime last = dates.last;
 
-    // 3. Format them as DD.MM.YYYY
     final DateFormat formatter = DateFormat('dd.MM.yyyy');
-    String range = "${formatter.format(first)} - ${formatter.format(last)}";
-
-    return isIcelandic ? "Matseðill vikunnar\n$range" : "Weekly Menu $range";
+    return isIcelandic
+        ? "Matseðill vikunnar\n${formatter.format(first)} - ${formatter.format(last)}"
+        : "Weekly Menu\n${formatter.format(first)} - ${formatter.format(last)}";
   }
 
   @override
   Widget build(BuildContext context) {
-    // We wrap the check in a ValueListenableBuilder so it updates when the list changes
     return ValueListenableBuilder<List<Meal>>(
       valueListenable: menuNotifier,
       builder: (context, meals, child) {
         bool isMenuReady = !isLoading && meals.isNotEmpty;
+        final user = FirebaseAuth.instance.currentUser;
 
         return Scaffold(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.grey[50],
           appBar: AppBar(
+            backgroundColor: Colors.white,
             elevation: 0,
-            backgroundColor: Colors.blueGrey.shade900,
-            centerTitle: true,
-            title: Text(
-              'Order Food',
-              style: const TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            leadingWidth: 140, // Increased width to fit icon + text
+            leading: TextButton.icon(
+              onPressed: onToggleLanguage,
+              icon: const Icon(
+                Icons.language_rounded,
+                size: 18,
+                color: Colors.blueAccent,
+              ),
+              label: Text(
+                isIcelandic ? "ENGLISH" : "ÍSLENSKA",
+                style: const TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blueAccent,
+                ),
               ),
             ),
             actions: [
               Padding(
-                padding: const EdgeInsets.only(right: 8.0),
-                child: TextButton(
-                  onPressed: onToggleLanguage,
-                  style: TextButton.styleFrom(foregroundColor: Colors.orange),
-                  child: Text(
-                    isIcelandic ? "🇬🇧 ENG" : "🇮🇸 ISL",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                  ),
+                padding: const EdgeInsets.only(right: 16.0),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      user?.displayName ?? user?.email?.split('@')[0] ?? "",
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    GestureDetector(
+                      onTap: () async => await AuthService().signOut(),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            isIcelandic ? "Útskrá" : "Logout",
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Colors.redAccent,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          const Icon(
+                            Icons.logout_rounded,
+                            size: 14,
+                            color: Colors.redAccent,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],
           ),
-          body: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _buildBigButton(
-                  context,
-                  title: isIcelandic ? "Panta Mat" : "Order Food",
-                  // UPDATED SUBTITLE HERE
-                  subtitle: isLoading
-                      ? (isIcelandic ? "Sæki matseðil..." : "Fetching menu...")
-                      : (isMenuReady
-                            ? _getWeekRange()
-                            : (isIcelandic
-                                  ? "Matseðill ekki klár"
-                                  : "Menu not ready")),
-                  icon: Icons.restaurant_menu_rounded,
-                  color: isMenuReady ? Colors.orange : Colors.grey.shade400,
-                  onTap: isMenuReady
-                      ? () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => DaySelectionScreen(
-                                isIcelandic: isIcelandic,
-                                menuNotifier: menuNotifier,
-                                onRefresh: onRefresh,
+          // FloatingActionButton Removed as requested
+          body: Stack(
+            children: [
+              RefreshIndicator(
+                onRefresh: onRefresh,
+                color: Colors.orange,
+                child: SingleChildScrollView(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  child: Container(
+                    height: MediaQuery.of(context).size.height - 120,
+                    padding: const EdgeInsets.all(24.0),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        _buildBigButton(
+                          context,
+                          title: isIcelandic ? "Panta Mat" : "Order Food",
+                          subtitle: isMenuReady
+                              ? _getWeekRange()
+                              : (isIcelandic
+                                    ? "Matseðill ekki klár"
+                                    : "Menu not ready"),
+                          icon: Icons.restaurant_menu_rounded,
+                          color: isMenuReady
+                              ? Colors.orange
+                              : Colors.grey.shade400,
+                          onTap: isMenuReady
+                              ? () => _goToOrder(context)
+                              : () {},
+                        ),
+                        const SizedBox(height: 24),
+                        _buildBigButton(
+                          context,
+                          title: isIcelandic ? "Mínar Pantanir" : "My Orders",
+                          subtitle: isIcelandic
+                              ? "Saga og yfirlit"
+                              : "History & Overview",
+                          icon: Icons.history_rounded,
+                          color: Colors.blueGrey.shade700,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => MyOrdersScreen(
+                                  isIcelandic: isIcelandic,
+                                  orderedDatesNotifier: orderedDatesNotifier,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 30),
+
+                        // REFRESH HINT & TIMESTAMP
+                        Column(
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.keyboard_double_arrow_down_rounded,
+                                  size: 16,
+                                  color: Colors.grey.withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(width: 4),
+                                Text(
+                                  isIcelandic
+                                      ? "Draga niður til að uppfæra matseðil"
+                                      : "Pull down to refresh menu",
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    color: Colors.grey.withValues(alpha: 0.8),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              isIcelandic
+                                  ? "Síðast uppfært: ${DateFormat('HH:mm').format(DateTime.now())}"
+                                  : "Last updated: ${DateFormat('HH:mm').format(DateTime.now())}",
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey.withValues(alpha: 0.5),
                               ),
                             ),
-                          );
-                        }
-                      : () {},
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-                const SizedBox(height: 24),
-                _buildBigButton(
-                  context,
-                  title: isIcelandic ? "Mínar Pantanir" : "My Orders",
-                  subtitle: isIcelandic
-                      ? "Saga og yfirlit"
-                      : "History & Overview",
-                  icon: Icons.history_rounded,
-                  color: Colors.blueGrey.shade700,
-                  onTap: () {
-                    // Future History Screen
-                  },
+              ),
+              if (isLoading)
+                Container(
+                  color: Colors.black.withValues(alpha: 0.3),
+                  child: Center(
+                    child: Card(
+                      elevation: 8,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(24.0),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(
+                              color: Colors.orange,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              isIcelandic
+                                  ? "Sæki matseðil..."
+                                  : "Refreshing menu...",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
                 ),
-              ],
-            ),
+            ],
           ),
         );
       },
+    );
+  }
+
+  void _goToOrder(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => DaySelectionScreen(
+          isIcelandic: isIcelandic,
+          menuNotifier: menuNotifier,
+          orderedDatesNotifier: orderedDatesNotifier,
+          onRefresh: onRefresh,
+        ),
+      ),
     );
   }
 

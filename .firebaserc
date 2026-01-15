@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "tdk-food-app"
+  },
+  "targets": {
+    "tdk-food-app": {
+      "hosting": {
+        "tdk_site_target": [
+          "tdk-food"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

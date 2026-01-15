@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "180698664386",
+    "project_id": "tdk-food-app",
+    "storage_bucket": "tdk-food-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:180698664386:android:1ba65d59cd345aed889a5b",
+        "android_client_info": {
+          "package_name": "com.example.food_menu"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "180698664386-689jpk4uh5hrsb7ncv92qmmhb1psgpck.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtyirVDMGPjBjraEBd017vaUT-cxVRbak"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "180698664386-689jpk4uh5hrsb7ncv92qmmhb1psgpck.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

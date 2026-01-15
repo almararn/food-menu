@@ -4,14 +4,15 @@ import '../models/meal.dart';
 
 class DaySelectionScreen extends StatefulWidget {
   final bool isIcelandic;
-  // CHANGE 1: Accept the Notifier
   final ValueNotifier<List<Meal>> menuNotifier;
+  final ValueNotifier<List<String>> orderedDatesNotifier;
   final Future<void> Function() onRefresh;
 
   const DaySelectionScreen({
     super.key,
     required this.isIcelandic,
     required this.menuNotifier,
+    required this.orderedDatesNotifier,
     required this.onRefresh,
   });
 
@@ -20,35 +21,37 @@ class DaySelectionScreen extends StatefulWidget {
 }
 
 class _DaySelectionScreenState extends State<DaySelectionScreen> {
-  bool _localLoading = false;
-
-  Future<void> _handleRefresh() async {
-    setState(() => _localLoading = true);
-    try {
-      // Calling this updates the notifier in main.dart
-      // Because we are listening to that notifier below, the UI updates automatically
-      await widget.onRefresh();
-    } catch (e) {
-      // Handle error
-    } finally {
-      if (mounted) setState(() => _localLoading = false);
-    }
+  String _translateDay(String day) {
+    if (!widget.isIcelandic) return day;
+    final dayMap = {
+      'Monday': 'Mánudagur',
+      'Tuesday': 'Þriðjudagur',
+      'Wednesday': 'Miðvikudagur',
+      'Thursday': 'Fimmtudagur',
+      'Friday': 'Föstudagur',
+      'Saturday': 'Laugardagur',
+      'Sunday': 'Sunnudagur',
+    };
+    return dayMap[day] ?? day;
   }
 
   bool _isDayAvailable(String fullDateStr) {
     DateTime now = DateTime.now();
     DateTime? mealDate = DateTime.tryParse(fullDateStr);
     if (mealDate == null) return false;
+
     DateTime todayMidnight = DateTime(now.year, now.month, now.day);
     DateTime mealMidnight = DateTime(
       mealDate.year,
       mealDate.month,
       mealDate.day,
     );
+
     if (mealMidnight.isBefore(todayMidnight)) return false;
     if (mealMidnight.isAtSameMomentAs(todayMidnight) && now.hour >= 10) {
       return false;
     }
+
     return true;
   }
 
@@ -61,102 +64,119 @@ class _DaySelectionScreenState extends State<DaySelectionScreen> {
         backgroundColor: Colors.blueGrey.shade900,
         iconTheme: const IconThemeData(color: Colors.white),
         title: Text(
-          widget.isIcelandic ? "Velja Dag" : "Pick the day",
+          widget.isIcelandic ? "Velja dag" : "Pick the day",
           style: const TextStyle(
             color: Colors.white,
             fontWeight: FontWeight.bold,
           ),
         ),
-        actions: [
-          Row(
-            children: [
-              Text(
-                widget.isIcelandic ? "Endursækja " : "Refresh ",
-                style: const TextStyle(color: Colors.white, fontSize: 13),
-              ),
-              if (_localLoading)
-                const Padding(
-                  padding: EdgeInsets.only(right: 12.0),
-                  child: SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      color: Colors.orange,
-                      strokeWidth: 2,
-                    ),
-                  ),
-                )
-              else
-                IconButton(
-                  icon: const Icon(Icons.refresh, color: Colors.orange),
-                  onPressed: _handleRefresh,
-                ),
-            ],
-          ),
-        ],
       ),
-      // CHANGE 2: ValueListenableBuilder listens to the notifier
-      body: ValueListenableBuilder<List<Meal>>(
-        valueListenable: widget.menuNotifier,
-        builder: (context, currentMeals, child) {
-          return Stack(
-            children: [
-              currentMeals.isEmpty
-                  ? const Center(
-                      child: CircularProgressIndicator(color: Colors.orange),
-                    )
-                  : _buildDayList(context, currentMeals),
-              if (_localLoading) _buildLoadingOverlay(),
-            ],
+      body: ValueListenableBuilder<List<String>>(
+        valueListenable: widget.orderedDatesNotifier,
+        builder: (context, orderedDates, child) {
+          return ValueListenableBuilder<List<Meal>>(
+            valueListenable: widget.menuNotifier,
+            builder: (context, currentMeals, child) {
+              if (currentMeals.isEmpty) {
+                return const Center(
+                  child: CircularProgressIndicator(color: Colors.orange),
+                );
+              }
+              return _buildDayList(context, currentMeals, orderedDates);
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildDayList(BuildContext context, List<Meal> mealsForList) {
+  Widget _buildDayList(
+    BuildContext context,
+    List<Meal> mealsForList,
+    List<String> orderedDates,
+  ) {
     final seenDates = <String>{};
     final uniqueDays = mealsForList
         .where((meal) => seenDates.add(meal.fullDate))
         .toList();
 
     return ListView.builder(
-      // We still use a key, but now the ValueListenableBuilder handles the rebuild trigger
-      key: ValueKey(mealsForList.hashCode),
+      key: ValueKey(mealsForList.hashCode ^ orderedDates.hashCode),
       padding: const EdgeInsets.symmetric(vertical: 16),
       itemCount: uniqueDays.length,
       itemBuilder: (context, index) {
         final meal = uniqueDays[index];
         bool available = _isDayAvailable(meal.fullDate);
+        String formattedMealDate = meal.date.replaceAll('/', '.');
+
+        // UPDATED LOGIC: Check if any order string STARTS with this date
+        bool alreadyOrdered = orderedDates.any(
+          (o) => o.startsWith(formattedMealDate),
+        );
+
         return Card(
-          elevation: 2,
-          shadowColor: Colors.blueGrey.withValues(alpha: 0.1),
-          color: available ? Colors.white : Colors.grey.shade50,
-          margin: const EdgeInsets.only(bottom: 12, left: 16, right: 16),
+          elevation: (available && !alreadyOrdered) ? 2 : 0,
+          color: !available
+              ? Colors.grey.shade50
+              : (alreadyOrdered ? Colors.green.shade50 : Colors.white),
+          margin: const EdgeInsets.only(bottom: 8, left: 16, right: 16),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
             side: BorderSide(
-              color: available ? Colors.blueGrey.shade100 : Colors.transparent,
+              color: !available
+                  ? Colors.transparent
+                  : (alreadyOrdered
+                        ? Colors.green.shade200
+                        : Colors.blueGrey.shade100),
             ),
           ),
           child: ListTile(
             leading: Icon(
-              available
-                  ? Icons.calendar_today_rounded
-                  : Icons.lock_outline_rounded,
-              color: available ? Colors.orange : Colors.blueGrey.shade300,
+              !available
+                  ? Icons.lock_outline_rounded
+                  : (alreadyOrdered
+                        ? Icons.check_circle_rounded
+                        : Icons.calendar_today_rounded),
+              color: !available
+                  ? Colors.blueGrey.shade200
+                  : (alreadyOrdered ? Colors.green : Colors.orange),
             ),
-            title: Text(
-              meal.day,
-              style: TextStyle(
-                color: available ? Colors.blueGrey.shade900 : Colors.grey,
-                fontWeight: FontWeight.bold,
-              ),
+            title: Row(
+              children: [
+                SizedBox(
+                  width: 115,
+                  child: Text(
+                    _translateDay(meal.day),
+                    style: TextStyle(
+                      color: !available
+                          ? Colors.grey
+                          : Colors.blueGrey.shade900,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (alreadyOrdered)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: !available ? Colors.grey.shade400 : Colors.green,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      widget.isIcelandic ? "PANTAÐ" : "ORDERED",
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+              ],
             ),
-            subtitle: Text(
-              meal.date,
-              style: TextStyle(color: Colors.blueGrey.shade400),
-            ),
+            subtitle: Text(formattedMealDate),
             trailing: available
                 ? const Icon(
                     Icons.arrow_forward_ios,
@@ -172,6 +192,7 @@ class _DaySelectionScreenState extends State<DaySelectionScreen> {
                         date: meal.fullDate,
                         allMeals: mealsForList,
                         isIcelandic: widget.isIcelandic,
+                        orderedDatesNotifier: widget.orderedDatesNotifier,
                       ),
                     ),
                   )
@@ -188,40 +209,18 @@ class _DaySelectionScreenState extends State<DaySelectionScreen> {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
-          widget.isIcelandic ? "Lokað" : "Locked",
+          widget.isIcelandic ? "Lokað" : "Closed",
           style: const TextStyle(
             color: Colors.red,
             fontWeight: FontWeight.bold,
-            fontSize: 14,
+            fontSize: 13,
           ),
         ),
         Text(
-          widget.isIcelandic ? "Eftir kl. 10:00" : "Past 10:00 AM",
-          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+          "Kl. 10:00",
+          style: TextStyle(fontSize: 10, color: Colors.grey[600]),
         ),
       ],
-    );
-  }
-
-  Widget _buildLoadingOverlay() {
-    return Container(
-      color: Colors.white.withValues(alpha: 0.7),
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const CircularProgressIndicator(color: Colors.orange),
-            const SizedBox(height: 16),
-            Text(
-              widget.isIcelandic ? "Uppfæri matseðil..." : "Updating menu...",
-              style: TextStyle(
-                color: Colors.blueGrey.shade900,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
