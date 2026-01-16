@@ -1,9 +1,9 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+// import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  //  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
   // Stream to listen to auth state changes
   Stream<User?> get user => _auth.authStateChanges();
@@ -50,29 +50,42 @@ class AuthService {
     }
   }
 
-  // 3. Sign in with Apple
-  Future<UserCredential?> signInWithApple() async {
-    AppleAuthProvider appleProvider = AppleAuthProvider();
+  // 3. Email & Password Sign In
+  Future<UserCredential?> signInWithEmail(String email, String password) async {
     try {
-      final UserCredential userCredential = await _auth.signInWithPopup(
-        appleProvider,
+      final userCredential = await _auth.signInWithEmailAndPassword(
+        email: email,
+        password: password,
       );
-
-      final bool allowed = await isEmailWhitelisted(
-        userCredential.user?.email ?? "",
-      );
-      if (!allowed) {
-        await _auth.signOut();
-        throw Exception("Email not authorized.");
-      }
       return userCredential;
     } catch (e) {
-      print("Apple Sign-In Error: $e");
+      print("Email Sign-In Error: $e");
       rethrow;
     }
   }
 
-  // 4. Sign Out
+  // 4. Email & Password Register
+  Future<UserCredential?> registerWithEmail(String email, String password, String name) async {
+    try {
+      final userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email,
+        password: password,
+      );
+      
+      // Update Display Name
+      if (userCredential.user != null) {
+        await userCredential.user!.updateDisplayName(name);
+        await userCredential.user!.reload();
+      }
+      
+      return userCredential;
+    } catch (e) {
+      print("Email Register Error: $e");
+      rethrow;
+    }
+  }
+
+  // 5. Sign Out
   Future<void> signOut() async {
     await _auth.signOut();
   }

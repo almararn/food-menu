@@ -8,12 +8,14 @@ import 'screens/login_screen.dart'; // Add this
 import 'services/auth_service.dart'; // Add this
 import 'models/meal.dart';
 import 'services/api_service.dart';
+import 'helpers/web_loader.dart'; // Add this import
 
 // Update main to be async for Firebase
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   runApp(const TDKFoodApp());
+  removeWebLoader(); // Remove the HTML loader once Flutter is up
 }
 
 class TDKFoodApp extends StatefulWidget {

@@ -126,106 +126,106 @@ class HomeScreen extends StatelessWidget {
                 color: Colors.orange,
                 child: SingleChildScrollView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  child: Container(
-                    height: MediaQuery.of(context).size.height - 120,
-                    padding: const EdgeInsets.all(24.0),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Icon or Logo
-                        const Icon(
-                          Icons.restaurant_menu_rounded,
-                          size: 80,
-                          color: Colors.blueGrey,
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
-                          "TDK Food Portal",
-                          style: TextStyle(
-                            fontSize: 28,
-                            fontWeight: FontWeight.bold,
+                  child: Center(
+                    child: Container(
+                      constraints: const BoxConstraints(maxWidth: 600),
+                      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 40.0),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Icon or Logo
+                          const Icon(
+                            Icons.restaurant_menu_rounded,
+                            size: 80,
                             color: Colors.blueGrey,
                           ),
-                        ),
-                        const SizedBox(
-                          height: 56,
-                        ), // Space instead of the removed text
-                        _buildBigButton(
-                          context,
-                          title: isIcelandic ? "Panta Mat" : "Order Food",
-                          subtitle: isMenuReady
-                              ? _getWeekRange()
-                              : (isIcelandic
-                                    ? "Matseðill ekki klár"
-                                    : "Menu not ready"),
-                          icon: Icons.fastfood,
-                          color: isMenuReady
-                              ? Colors.orange
-                              : Colors.grey.shade400,
-                          onTap: isMenuReady
-                              ? () => _goToOrder(context)
-                              : () {},
-                        ),
-                        const SizedBox(height: 24),
-                        _buildBigButton(
-                          context,
-                          title: isIcelandic ? "Mínar Pantanir" : "My Orders",
-                          subtitle: isIcelandic
-                              ? "Saga og yfirlit"
-                              : "History & Overview",
-                          icon: Icons.history_rounded,
-                          color: Colors.blueGrey.shade700,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => MyOrdersScreen(
-                                  isIcelandic: isIcelandic,
-                                  orderedDatesNotifier: orderedDatesNotifier,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 30),
-
-                        // REFRESH HINT & TIMESTAMP
-                        Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.keyboard_double_arrow_down_rounded,
-                                  size: 16,
-                                  color: Colors.grey.withValues(alpha: 0.6),
-                                ),
-                                const SizedBox(width: 4),
-                                Text(
-                                  isIcelandic
-                                      ? "Draga niður til að uppfæra matseðil"
-                                      : "Pull down to refresh menu",
-                                  style: TextStyle(
-                                    fontSize: 13,
-                                    color: Colors.grey.withValues(alpha: 0.8),
-                                    fontWeight: FontWeight.w500,
+                          const SizedBox(height: 24),
+                          const Text(
+                            "TDK Food Portal",
+                            style: TextStyle(
+                              fontSize: 28,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.blueGrey,
+                            ),
+                          ),
+                          const SizedBox(height: 56), // Space instead of the removed text
+                          _buildBigButton(
+                            context,
+                            title: isIcelandic ? "Panta Mat" : "Order Food",
+                            subtitle: isMenuReady
+                                ? _getWeekRange()
+                                : (isIcelandic
+                                      ? "Matseðill ekki klár"
+                                      : "Menu not ready"),
+                            icon: Icons.fastfood,
+                            color: isMenuReady
+                                ? Colors.orange
+                                : Colors.grey.shade400,
+                            onTap: isMenuReady
+                                ? () => _goToOrder(context)
+                                : () {},
+                          ),
+                          const SizedBox(height: 24),
+                          _buildBigButton(
+                            context,
+                            title: isIcelandic ? "Mínar Pantanir" : "My Orders",
+                            subtitle: isIcelandic
+                                ? "Saga og yfirlit"
+                                : "History & Overview",
+                            icon: Icons.history_rounded,
+                            color: Colors.blueGrey.shade700,
+                            onTap: () {
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => MyOrdersScreen(
+                                    isIcelandic: isIcelandic,
+                                    orderedDatesNotifier: orderedDatesNotifier,
                                   ),
                                 ),
-                              ],
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              isIcelandic
-                                  ? "Síðast uppfært: ${DateFormat('HH:mm').format(DateTime.now())}"
-                                  : "Last updated: ${DateFormat('HH:mm').format(DateTime.now())}",
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: Colors.grey.withValues(alpha: 0.5),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 60),
+
+                          // REFRESH HINT & TIMESTAMP
+                          Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.keyboard_double_arrow_down_rounded,
+                                    size: 16,
+                                    color: Colors.grey.withValues(alpha: 0.6),
+                                  ),
+                                  const SizedBox(width: 4),
+                                  Text(
+                                    isIcelandic
+                                        ? "Draga niður til að uppfæra matseðil"
+                                        : "Pull down to refresh menu",
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      color: Colors.grey.withValues(alpha: 0.8),
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
                               ),
-                            ),
-                          ],
-                        ),
-                      ],
+                              const SizedBox(height: 8),
+                              Text(
+                                isIcelandic
+                                    ? "Síðast uppfært: ${DateFormat('HH:mm').format(DateTime.now())}"
+                                    : "Last updated: ${DateFormat('HH:mm').format(DateTime.now())}",
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.grey.withValues(alpha: 0.5),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

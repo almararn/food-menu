@@ -118,6 +118,10 @@ class _MealDetailScreenState extends State<MealDetailScreen> {
         widget.isIcelandic ? "Pöntun eytt" : "Order Cancelled",
         Colors.orange,
       );
+
+      // Wait 2 seconds before going back
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted) Navigator.pop(context);
     }
   }
 
